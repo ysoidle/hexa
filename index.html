@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hexa — 旋转六边形物理演示</title>
+<meta name="description" content="一个零依赖的二维物理演示：旋转六边形里的弹跳小球。">
+<meta name="theme-color" content="#FAF9F5">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 3.5 26.8 9.75v12.5L16 28.5 5.2 22.25V9.75Z' fill='none' stroke='%231F1E1D' stroke-width='2.4' stroke-linejoin='round'/%3E%3Ccircle cx='17.5' cy='20' r='3.8' fill='%23D97757'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="nav" id="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="Hexa 首页">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3.5 26.8 9.75v12.5L16 28.5 5.2 22.25V9.75Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="17.5" cy="20" r="3.8" fill="#D97757"/></svg>
+      <span>Hexa</span><span class="brand-sub">物理演示</span>
+    </a>
+    <nav class="nav-links" aria-label="页面导航">
+      <a href="#demo">演示</a><a href="#how">原理</a><a href="#code">代码</a><a href="#design">设计</a>
+    </nav>
+    <a class="btn btn-dark btn-sm" href="#demo">开始体验</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero wrap">
+    <p class="eyebrow reveal"><span class="pip"></span>项目演示 · Interactive Physics</p>
+    <h1 class="reveal">在旋转的六边形里，<br><span class="accent">让每一次弹跳都讲道理。</span></h1>
+    <p class="lede reveal">Hexa 是一个零依赖的二维物理小实验：重力、旋转墙面的拖拽、库仑摩擦与小球之间的动量交换，全部在浏览器里以每帧 8 个子步实时求解。</p>
+    <div class="hero-actions reveal">
+      <a class="btn btn-clay" href="#demo">开始互动</a>
+      <a class="btn btn-ghost" href="#how">了解原理</a>
+    </div>
+    <ul class="facts reveal">
+      <li><strong>0</strong><span>外部依赖</span></li>
+      <li><strong>8</strong><span>物理子步 / 帧</span></li>
+      <li><strong>80</strong><span>最大刚体数</span></li>
+      <li><strong>60</strong><span>目标帧率</span></li>
+    </ul>
+  </section>
+
+  <section class="demo wrap" id="demo" aria-label="实时演示">
+    <div class="demo-card reveal" id="demo-card" data-theme="slate">
+      <div class="stage" id="stage" tabindex="0" aria-label="物理模拟画布。点击发射小球，空格暂停，R 重置，T 切换主题。">
+        <canvas id="sim"></canvas>
+        <div class="hud hud-tl"><span class="live"><i></i><b id="hud-state">LIVE</b></span></div>
+        <div class="hud hud-tr" id="hud-omega">ω +0.80 rad/s</div>
+        <div class="hud hud-bl" id="hud-stats">— BALLS · — FPS</div>
+        <div class="hud hud-br">点击画布 · 发射小球</div>
+      </div>
+
+      <aside class="inspector" aria-label="控制台">
+        <div class="group g-presets">
+          <h3 class="label">场景预设</h3>
+          <div class="chips">
+            <button class="chip is-active" data-preset="default">默认</button>
+            <button class="chip" data-preset="float">失重</button>
+            <button class="chip" data-preset="spin">离心</button>
+            <button class="chip" data-preset="bouncy">弹力球</button>
+            <button class="chip" data-preset="crowd">满仓</button>
+          </div>
+        </div>
+
+        <div class="group g-params">
+          <h3 class="label">物理参数</h3>
+          <div class="field">
+            <div class="field-head"><label for="spin">转速<small>rad/s</small></label><output for="spin"></output></div>
+            <input id="spin" data-key="spin" type="range" min="-3" max="3" step="0.05" value="0.8">
+          </div>
+          <div class="field">
+            <div class="field-head"><label for="grav">重力<small>× g</small></label><output for="grav"></output></div>
+            <input id="grav" data-key="grav" type="range" min="0" max="3" step="0.05" value="1">
+          </div>
+          <div class="field">
+            <div class="field-head"><label for="bounce">弹性<small>e</small></label><output for="bounce"></output></div>
+            <input id="bounce" data-key="e" type="range" min="0.3" max="1" step="0.01" value="0.85">
+          </div>
+          <div class="field">
+            <div class="field-head"><label for="fric">摩擦<small>μ</small></label><output for="fric"></output></div>
+            <input id="fric" data-key="mu" type="range" min="0" max="1" step="0.01" value="0.3">
+          </div>
+          <div class="field">
+            <div class="field-head"><label for="count">数量<small>个</small></label><output for="count"></output></div>
+            <input id="count" data-key="count" type="range" min="1" max="80" step="1" value="24">
+          </div>
+        </div>
+
+        <div class="group g-play">
+          <h3 class="label">播放与外观</h3>
+          <div class="transport">
+            <button class="btn btn-dark" id="btn-pause">
+              <svg class="ico-pause" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1.5" width="2.6" height="9" rx=".8" fill="currentColor"/><rect x="7.4" y="1.5" width="2.6" height="9" rx=".8" fill="currentColor"/></svg>
+              <svg class="ico-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8v8.4c0 .5.5.8.9.5l6.6-4.2a.6.6 0 0 0 0-1L3.9 1.3c-.4-.3-.9 0-.9.5Z" fill="currentColor"/></svg>
+              <span>暂停</span>
+            </button>
+            <button class="btn btn-line" id="btn-reverse">反转</button>
+            <button class="btn btn-line" id="btn-reset">重置</button>
+          </div>
+          <div class="seg" role="group" aria-label="主题">
+            <button data-theme-set="slate" aria-pressed="true"><span class="sw" style="background:#1F1E1D"></span>石板</button>
+            <button data-theme-set="ivory" aria-pressed="false"><span class="sw" style="background:#F0EEE6"></span>象牙</button>
+          </div>
+        </div>
+
+        <p class="keys"><span><kbd>Space</kbd>暂停</span><span><kbd>R</kbd>重置</span><span><kbd>T</kbd>主题</span></p>
+      </aside>
+    </div>
+  </section>
+
+  <section class="band" id="how">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <p class="eyebrow"><span class="pip"></span>原理</p>
+        <h2>四个细节，让它看起来「对」。</h2>
+        <p class="sub">视觉上的可信，来自物理上的诚实。下面是这个演示里最关键的四处处理。</p>
+      </div>
+      <div class="cards">
+        <article class="card reveal">
+          <span class="num">01</span>
+          <h3>在墙的参考系里碰撞</h3>
+          <p>墙在转，接触点有自己的速度。先把小球速度换算到墙的参考系再反弹，小球就会被墙「带着走」。</p>
+          <code class="formula">v<sub>rel</sub> = v − ω × r<sub>c</sub></code>
+        </article>
+        <article class="card reveal">
+          <span class="num">02</span>
+          <h3>库仑摩擦</h3>
+          <p>切向速度的削减不超过 μ 倍法向冲量：滑得动就滑，滑不动就贴着墙一起转。</p>
+          <code class="formula">|Δv<sub>t</sub>| ≤ μ · Δv<sub>n</sub></code>
+        </article>
+        <article class="card reveal">
+          <span class="num">03</span>
+          <h3>子步积分</h3>
+          <p>每帧拆成 8 个子步做半隐式欧拉积分。高速小球不会穿墙，堆叠在一起也不抖动。</p>
+          <code class="formula">dt<sub>sub</sub> = dt / 8</code>
+        </article>
+        <article class="card reveal">
+          <span class="num">04</span>
+          <h3>按面积分配质量</h3>
+          <p>质量与 r² 成正比，冲量按逆质量分配：大球推得动小球，反过来却很难。</p>
+          <code class="formula">j = −(1+e)·v<sub>n</sub> / Σm⁻¹</code>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap split" id="code">
+    <div class="reveal">
+      <p class="eyebrow"><span class="pip"></span>核心代码</p>
+      <h2>旋转墙面的碰撞，<br>二十几行就够了。</h2>
+      <p class="sub">整个引擎是一份三百多行的原生 JavaScript，没有框架，也没有物理库。右边这段，就是让小球「贴着墙一起转」的全部逻辑。</p>
+      <ul class="ticks">
+        <li>六边形用 6 个半平面描述，判定只需一次点积</li>
+        <li>先修正穿透，再处理速度，堆叠更稳定</li>
+        <li>低速接触直接归零法向速度，小球能稳稳「躺」在墙上</li>
+      </ul>
+    </div>
+    <figure class="code-window reveal">
+      <figcaption><span class="dots"><i></i><i></i><i></i></span><span>sim.js — wall collision</span></figcaption>
+<pre><code id="code-snippet">for (let i = 0; i &lt; 6; i++) {
+  const nx = NX[i], ny = NY[i];
+  const d = b.x * nx + b.y * ny, lim = APO - b.r;
+  if (d &lt;= lim) continue;
+  b.x -= nx * (d - lim); b.y -= ny * (d - lim);
+
+  // 换到墙的参考系：接触点速度 v_w = ω × r
+  const qx = b.x + nx * b.r, qy = b.y + ny * b.r;
+  const wx = -om * qy, wy = om * qx;
+  const rx = b.vx - wx, ry = b.vy - wy;
+  const vn = rx * nx + ry * ny;
+  if (vn &lt;= 0) continue;
+
+  // 法向反弹 + 库仑摩擦
+  const vt = -rx * ny + ry * nx;
+  const newVn = vn > 0.08 ? -e * vn : 0;
+  const jn = vn - newVn;
+  const newVt = Math.sign(vt) * Math.max(0, Math.abs(vt) - mu * jn);
+
+  b.vx = wx + newVn * nx - newVt * ny;
+  b.vy = wy + newVn * ny + newVt * nx;
+}</code></pre>
+    </figure>
+  </section>
+
+  <section class="wrap design" id="design">
+    <div class="section-head reveal">
+      <p class="eyebrow"><span class="pip"></span>设计</p>
+      <h2>Claude 色板，克制地使用。</h2>
+      <p class="sub">以石板与象牙为底，陶土橙只留给最需要注意力的地方：撞击时的闪光、正在运行的状态，和关键的数值。</p>
+    </div>
+    <div class="design-grid">
+      <div class="palette reveal" aria-label="色板">
+        <div class="swatch" style="--c:#1F1E1D"><i></i><b>石板</b><span>Slate</span><code>#1F1E1D</code></div>
+        <div class="swatch" style="--c:#D97757"><i></i><b>陶土</b><span>Clay</span><code>#D97757</code></div>
+        <div class="swatch" style="--c:#CC785C"><i></i><b>书布</b><span>Book Cloth</span><code>#CC785C</code></div>
+        <div class="swatch" style="--c:#D4A27F"><i></i><b>牛皮纸</b><span>Kraft</span><code>#D4A27F</code></div>
+        <div class="swatch" style="--c:#EBDBBC"><i></i><b>马尼拉</b><span>Manilla</span><code>#EBDBBC</code></div>
+        <div class="swatch" style="--c:#F0EEE6"><i></i><b>象牙</b><span>Ivory</span><code>#F0EEE6</code></div>
+        <div class="swatch" style="--c:#91918D"><i></i><b>云灰</b><span>Cloud</span><code>#91918D</code></div>
+      </div>
+      <dl class="specs reveal">
+        <div><dt>渲染</dt><dd>Canvas 2D · 高 DPI 自适应</dd></div>
+        <div><dt>积分</dt><dd>半隐式欧拉 · 8 子步 / 帧</dd></div>
+        <div><dt>碰撞</dt><dd>六边形半平面 + 圆–圆冲量</dd></div>
+        <div><dt>摩擦</dt><dd>库仑模型 · μ 可调</dd></div>
+        <div><dt>规模</dt><dd>1 – 80 个刚体</dd></div>
+        <div><dt>依赖</dt><dd>0 · 原生 JavaScript</dd></div>
+        <div><dt>节能</dt><dd>离开视口自动停止渲染</dd></div>
+      </dl>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <a class="brand" href="#top">
+      <svg width="24" height="24" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3.5 26.8 9.75v12.5L16 28.5 5.2 22.25V9.75Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="17.5" cy="20" r="3.8" fill="#D97757"/></svg>
+      <span>Hexa</span>
+    </a>
+    <p>一个关于旋转、碰撞与摩擦的小实验。由 Claude Opus 5.5 编写，配色取自 Claude 品牌色板。</p>
+    <a href="#top">回到顶部 ↑</a>
+  </div>
+</footer>
+
+<script src="sim.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
